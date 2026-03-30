@@ -80,12 +80,10 @@ def send_password_reset_email(email: str, reset_token: str) -> bool:
 def _send_email(
     to_email: str, subject: str, html_content: str, plain_content: str
 ) -> bool:
-    if not settings.SENDGRID_API_KEY or settings.SENDGRID_API_KEY.startswith("SG."):
-        logger.warning(
-            f"SendGrid API key not configured. Email would be sent to {to_email}"
+    if not settings.SENDGRID_API_KEY or not settings.SENDGRID_API_KEY.startswith("SG."):
+        logger.info(
+            f"Email delivery disabled. Recipient: {to_email}, Subject: {subject}"
         )
-        logger.warning(f"Subject: {subject}")
-        logger.warning(f"HTML content preview: {html_content[:200]}...")
         return True
 
     try:

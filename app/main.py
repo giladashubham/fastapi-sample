@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import auth, users
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.core.rate_limit import setup_rate_limiting
 
 Base.metadata.create_all(bind=engine)
 
@@ -12,6 +13,8 @@ app = FastAPI(
     description="A FastAPI application with user management and email verification",
     version="1.0.0",
 )
+
+setup_rate_limiting(app)
 
 app.add_middleware(
     CORSMiddleware,

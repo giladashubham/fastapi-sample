@@ -1,13 +1,14 @@
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.core import email as email_utils
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.core.security import verify_verification_token, create_access_token
 from app.crud import user as user_crud
 from app.schemas.user import MessageResponse, Token, UserCreate, UserResponse
@@ -15,10 +16,11 @@ from app.schemas.user import MessageResponse, Token, UserCreate, UserResponse
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+@limiter.limit("5/minute")
 @router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
-def register(user: UserCreate, db: Session = Depends(get_db)) -> Any:
+def register(request: Request, user: UserCreate, db: Session = Depends(get_db)) -> Any:
     existing_email = user_crud.get_user_by_email(db, user.email)
     if existing_email:
         raise HTTPException(
@@ -38,9 +40,12 @@ def register(user: UserCreate, db: Session = Depends(get_db)) -> Any:
     return db_user
 
 
+@limiter.limit("10/minute")
 @router.post("/login", response_model=Token)
 def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
 ) -> Any:
     user = user_crud.authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -69,8 +74,10 @@ def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+@limiter.limit("20/minute")
 @router.get("/verify-email", response_model=MessageResponse)
 def verify_email(
+    request: Request,
     token: str = Query(..., description="Verification token from email"),
     db: Session = Depends(get_db),
 ) -> Any:
@@ -95,8 +102,10 @@ def verify_email(
     return {"message": "Email verified successfully"}
 
 
+@limiter.limit("3/minute")
 @router.post("/resend-verification", response_model=MessageResponse)
 def resend_verification(
+    request: Request,
     email: str = Query(..., description="Email address to resend verification"),
     db: Session = Depends(get_db),
 ) -> Any:
